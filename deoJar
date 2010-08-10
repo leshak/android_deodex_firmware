@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# $1 - filename in (framework folder)
+function deodex {
+	echo "Deodexing: "$1
+	echo "  -> baksmali..."
+	`java -Xmx512m -jar baksmali-1.2.4.jar -d deodexed_jar -x "./framework/"$1`
+	`mkdir -p temp`
+	echo "  <- smali..."
+	`java -jar smali-1.2.4.jar out -o "./temp/classes.dex"`
+
+	# filename without extension
+	fname=${1%.*}
+
+	# copy jar file to deodexed_jar
+	cp ./framework/$fname.jar ./deodexed_jar/$fname-step1.jar
+
+	# add temp/classes.dex to jar file
+	7z a -tzip ./deodexed_jar/$fname-step1.jar ./temp/classes.dex > /dev/null
+
+	# zipalign
+	zipalign -f 4 ./deodexed_jar/$fname-step1.jar ./deodexed_jar/$fname-step2.jar
+	rm ./deodexed_jar/$fname-step1.jar
+
+	# sign
+	`java -classpath $HOME/bin/sign/testsign.jar testsign ./deodexed_jar/$fname-step2.jar ./deodexed_jar/$fname.jar`
+	rm ./deodexed_jar/$fname-step2.jar
+
+	# remove temp folders
+	rm -r ./out
+	rm -r ./temp
+	echo "Deodexed: "$fname".jar"
+	rm -f ./deodexed_jar/$fname.odex
+	rm -f ./framework/$fname.odex
+	rm -f ./framework/$fname.jar
+	echo "-----------------------------------------------------"
+}
+
+#
+# this is the workaround for a tiny bug in v1.2
+#
+mkdir -p deodexed_jar
+cp ./framework/core.odex ./deodexed_jar/core.odex
+cp ./framework/ext.odex ./deodexed_jar/ext.odex
+cp ./framework/framework.odex ./deodexed_jar/framework.odex
+cp ./framework/android.policy.odex ./deodexed_jar/android.policy.odex
+cp ./framework/services.odex ./deodexed_jar/services.odex
+
+#
+# Deodexing framework folder
+#
+#deodex $1
+
+LIST=`find ./framework/*.odex`
+for ITEM in $LIST
+do
+    odexfile=${ITEM##*/}
+    deodex $odexfile
+done
+
+#
+# Zipalign & Sign framework/framework-res.apk
+#
+zipalign -f 4 ./framework/framework-res.apk ./framework/framework-res-temp.apk
+rm ./framework/framework-res.apk
+
+`java -classpath $HOME/bin/sign/testsign.jar testsign ./framework/framework-res-temp.apk ./framework/framework-res.apk`
+rm ./framework/framework-res-temp.apk
+

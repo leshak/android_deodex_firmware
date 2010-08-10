@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# $1 - filename in (framework folder)
+function deodex {
+	echo "Deodexing: "$1
+	echo "  -> baksmali..."
+	`java -Xmx512m -jar baksmali-1.2.4.jar -d deodexed_jar -x "./app/"$1`
+	`mkdir -p temp`
+	echo "  <- smali..."
+	`java -jar smali-1.2.4.jar out -o "./temp/classes.dex"`
+
+	# filename without extension
+	fname=${1%.*}
+
+	# copy apk file to deodexed_apk
+	cp ./app/$fname.apk ./deodexed_apk/$fname-step1.apk
+
+	# add temp/classes.dex to apk file
+	7z a -tzip ./deodexed_apk/$fname-step1.apk ./temp/classes.dex > /dev/null
+
+	# zipalign
+	zipalign -f 4 ./deodexed_apk/$fname-step1.apk ./deodexed_apk/$fname-step2.apk
+	rm ./deodexed_apk/$fname-step1.apk
+
+	# sign
+	`java -classpath $HOME/bin/sign/testsign.jar testsign ./deodexed_apk/$fname-step2.apk ./deodexed_apk/$fname.apk`
+	rm ./deodexed_apk/$fname-step2.apk
+
+	# remove temp folders
+	rm -r ./out
+	rm -r ./temp
+	echo "Deodexed: "$fname".apk"
+	rm -f ./app/$fname.odex
+	rm -f ./app/$fname.apk
+        echo "-----------------------------------------------------"
+}
+
+
+mkdir -p deodexed_apk
+
+#
+# Deodexing framework folder
+#
+#deodex $1
+
+LIST=`find ./app/*.odex`
+for ITEM in $LIST
+do
+    odexfile=${ITEM##*/}
+    deodex $odexfile
+done

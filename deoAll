@@ -1,0 +1,20 @@
+#!/bin/bash
+
+start_time=$(date +%s)
+
+echo "***********************************"
+echo "*    Deodexing framework/*.jars   *"
+echo "***********************************"
+./deoJar
+
+
+echo "***********************************"
+echo "*       Deodexing app/*.apks      *"
+echo "***********************************"
+./deoApk
+
+
+# end
+finish_time=$(date +%s)
+echo "Time duration: $((finish_time - start_time)) secs."
+
