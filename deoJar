@@ -1,13 +1,15 @@
 #!/bin/bash
 
+SMALI_VER="1.2.4"
+
 # $1 - filename in (framework folder)
 function deodex {
 	echo "Deodexing: "$1
 	echo "  -> baksmali..."
-	`java -Xmx512m -jar baksmali-1.2.4.jar -d deodexed_jar -x "./framework/"$1`
+	`java -Xmx512m -jar baksmali-$SMALI_VER.jar -d deodexed_jar -x ./framework/$1`
 	`mkdir -p temp`
 	echo "  <- smali..."
-	`java -jar smali-1.2.4.jar out -o "./temp/classes.dex"`
+	`java -jar smali-$SMALI_VER.jar out -o ./temp/classes.dex`
 
 	# filename without extension
 	fname=${1%.*}
@@ -16,15 +18,20 @@ function deodex {
 	cp ./framework/$fname.jar ./deodexed_jar/$fname-step1.jar
 
 	# add temp/classes.dex to jar file
-	7z a -tzip ./deodexed_jar/$fname-step1.jar ./temp/classes.dex > /dev/null
-
-	# zipalign
-	zipalign -f 4 ./deodexed_jar/$fname-step1.jar ./deodexed_jar/$fname-step2.jar
-	rm ./deodexed_jar/$fname-step1.jar
+        if [ ! -e ./temp/classes.dex ] 
+	then
+		echo "Error smile "$fname", no classes.dex file!"
+                exit 2
+        fi
+	7z a -tzip -mx5 ./deodexed_jar/$fname-step1.jar ./temp/classes.dex > /dev/null
 
 	# sign
-	`java -classpath $HOME/bin/sign/testsign.jar testsign ./deodexed_jar/$fname-step2.jar ./deodexed_jar/$fname.jar`
-	rm ./deodexed_jar/$fname-step2.jar
+	#java -classpath $HOME/bin/sign/testsign.jar testsign ./deodexed_jar/$fname-step1.jar ./deodexed_jar/$fname-step2.jar
+        #rm ./deodexed_jar/$fname-step1.jar
+
+	# zipalign
+	zipalign -f 4 ./deodexed_jar/$fname-step1.jar ./deodexed_jar/$fname.jar
+	rm ./deodexed_jar/$fname-step1.jar
 
 	# remove temp folders
 	rm -r ./out
@@ -61,9 +68,8 @@ done
 #
 # Zipalign & Sign framework/framework-res.apk
 #
-zipalign -f 4 ./framework/framework-res.apk ./framework/framework-res-temp.apk
+`java -classpath $HOME/bin/sign/testsign.jar testsign ./framework/framework-res.apk ./framework/framework-res-temp.apk`
 rm ./framework/framework-res.apk
 
-`java -classpath $HOME/bin/sign/testsign.jar testsign ./framework/framework-res-temp.apk ./framework/framework-res.apk`
+zipalign -f 4 ./framework/framework-res-temp.apk ./framework/framework-res.apk
 rm ./framework/framework-res-temp.apk
-

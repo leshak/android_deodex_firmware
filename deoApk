@@ -1,13 +1,15 @@
 #!/bin/bash
 
+SMALI_VER="1.2.4"
+
 # $1 - filename in (framework folder)
 function deodex {
 	echo "Deodexing: "$1
 	echo "  -> baksmali..."
-	`java -Xmx512m -jar baksmali-1.2.4.jar -d deodexed_jar -x "./app/"$1`
+	`java -Xmx512m -jar baksmali-$SMALI_VER.jar -d deodexed_jar -x ./app/$1`
 	`mkdir -p temp`
 	echo "  <- smali..."
-	`java -jar smali-1.2.4.jar out -o "./temp/classes.dex"`
+	`java -jar smali-$SMALI_VER.jar out -o ./temp/classes.dex`
 
 	# filename without extension
 	fname=${1%.*}
@@ -16,15 +18,20 @@ function deodex {
 	cp ./app/$fname.apk ./deodexed_apk/$fname-step1.apk
 
 	# add temp/classes.dex to apk file
-	7z a -tzip ./deodexed_apk/$fname-step1.apk ./temp/classes.dex > /dev/null
-
-	# zipalign
-	zipalign -f 4 ./deodexed_apk/$fname-step1.apk ./deodexed_apk/$fname-step2.apk
-	rm ./deodexed_apk/$fname-step1.apk
+        if [ ! -e ./temp/classes.dex ] 
+        then
+                echo "Error smile "$fname", no classes.dex file!"
+                exit 2
+        fi
+	7z a -tzip -mx5 ./deodexed_apk/$fname-step1.apk ./temp/classes.dex > /dev/null
 
 	# sign
-	`java -classpath $HOME/bin/sign/testsign.jar testsign ./deodexed_apk/$fname-step2.apk ./deodexed_apk/$fname.apk`
-	rm ./deodexed_apk/$fname-step2.apk
+	`java -classpath $HOME/bin/sign/testsign.jar testsign ./deodexed_apk/$fname-step1.apk ./deodexed_apk/$fname-step2.apk`
+	rm ./deodexed_apk/$fname-step1.apk
+
+        # zipalign
+        zipalign -f 4 ./deodexed_apk/$fname-step2.apk ./deodexed_apk/$fname.apk
+        rm ./deodexed_apk/$fname-step2.apk
 
 	# remove temp folders
 	rm -r ./out
